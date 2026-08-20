@@ -1,0 +1,389 @@
+"""Command-Line Interface for Scribo."""
+
+import sys
+from pathlib import Path
+from typing import Optional
+
+import click
+from rich.console import Console
+from rich.panel import Panel
+from rich.table import Table
+from rich.markdown import Markdown
+
+from scribo import __version__
+from scribo.config import settings
+from scribo.audio.compressor import compress_audio, get_audio_metadata, check_ffmpeg
+from scribo.audio.transcriber import AudioTranscriber
+from scribo.synthesis.synthesizer import NoteSynthesizer
+from scribo.storage.local_store import (
+    save_lecture,
+    save_transcript_only,
+    load_lecture_notes,
+    load_lecture_transcript,
+    list_courses,
+    list_lectures,
+)
+
+console = Console()
+
+
+@click.group()
+@click.version_option(__version__, prog_name="Scribo")
+def main():
+    """Scribo: Academic knowledge engine and lecture ingestion pipeline."""
+    pass
+
+
+@main.command(name="info")
+def info():
+    """Display system configuration, API status, and environment."""
+    table = Table(title="📜 Scribo System Status", show_header=True, header_style="bold cyan")
+    table.add_column("Component", style="bold")
+    table.add_column("Status / Value", style="green")
+
+    table.add_row("Scribo Version", __version__)
+    table.add_row("Python Interpreter", sys.version.split()[0])
+    
+    # Check FFmpeg
+    ffmpeg_ok = check_ffmpeg()
+    table.add_row(
+        "FFmpeg Available",
+        "[green]Yes[/green]" if ffmpeg_ok else "[yellow]No (Using pydub fallback)[/yellow]"
+    )
+
+    # Check API Keys
+    has_gemini = settings.validate_gemini_key()
+    has_groq = settings.validate_groq_key()
+    has_openai = settings.validate_openai_key()
+
+    table.add_row(
+        "Gemini API Key",
+        "[green]Configured[/green]" if has_gemini else "[red]Not Configured (GEMINI_API_KEY in .env)[/red]"
+    )
+    table.add_row(
+        "Groq API Key (Whisper)",
+        "[green]Configured[/green]" if has_groq else "[dim]Not Configured (Optional GROQ_API_KEY)[/dim]"
+    )
+    table.add_row(
+        "OpenAI API Key (Whisper)",
+        "[green]Configured[/green]" if has_openai else "[dim]Not Configured (Optional OPENAI_API_KEY)[/dim]"
+    )
+
+    available_stt = settings.get_available_stt_providers()
+    table.add_row("Active STT Provider", f"[cyan]{settings.DEFAULT_STT_PROVIDER}[/cyan]")
+    table.add_row("Available STT Engines", ", ".join(available_stt) if available_stt else "[red]None[/red]")
+    table.add_row("Default Synthesis Model", settings.DEFAULT_MODEL)
+    table.add_row("Target Bitrate", settings.AUDIO_BITRATE)
+    table.add_row("Courses Storage", str(settings.COURSES_DATA_DIR))
+
+    console.print(table)
+
+
+@main.command(name="compress")
+@click.option("--input", "-i", "input_path", required=True, type=click.Path(exists=True), help="Input audio file.")
+@click.option("--output", "-o", "output_path", type=click.Path(), default=None, help="Output compressed MP3 file.")
+@click.option("--bitrate", "-b", default=settings.AUDIO_BITRATE, help="Target bitrate (e.g. 32k, 48k).")
+def compress_cmd(input_path: str, output_path: Optional[str], bitrate: str):
+    """Compress and downsample an audio file to mono MP3."""
+    with console.status("[bold blue]Compressing audio file...", spinner="dots"):
+        try:
+            out_file, orig_meta, comp_meta = compress_audio(
+                input_path=input_path,
+                output_path=output_path,
+                bitrate=bitrate,
+            )
+        except Exception as e:
+            console.print(f"[bold red]Compression error:[/bold red] {e}")
+            sys.exit(1)
+
+    table = Table(title="Audio Compression Summary", show_header=True)
+    table.add_column("Metric", style="cyan")
+    table.add_column("Original", style="yellow")
+    table.add_column("Compressed", style="green")
+
+    table.add_row("File Size", f"{orig_meta.size_mb} MB", f"{comp_meta.size_mb} MB")
+    table.add_row("Channels", str(orig_meta.channels), str(comp_meta.channels))
+    table.add_row("Sample Rate", f"{orig_meta.sample_rate} Hz", f"{comp_meta.sample_rate} Hz")
+    table.add_row("Duration", f"{orig_meta.duration_seconds}s", f"{comp_meta.duration_seconds}s")
+    table.add_row("Bitrate", orig_meta.bitrate or "Original", bitrate)
+
+    console.print(table)
+    console.print(f"[bold green]Saved compressed audio to:[/bold green] {out_file}")
+
+
+@main.command(name="transcribe")
+@click.option("--audio", "-a", required=True, type=click.Path(exists=True), help="Path to audio file.")
+@click.option("--output", "-o", default=None, help="Output transcript text file path.")
+@click.option("--keywords", "-k", default="", help="Comma-separated technical keywords.")
+@click.option("--provider", "-p", default=None, type=click.Choice(["gemini", "groq", "openai"], case_sensitive=False), help="STT provider.")
+@click.option("--course", "-c", default=None, help="Optional course ID to persist transcript.")
+@click.option("--lecture", "-l", default=None, help="Optional lecture ID to persist transcript.")
+def transcribe_cmd(
+    audio: str,
+    output: Optional[str],
+    keywords: str,
+    provider: Optional[str],
+    course: Optional[str],
+    lecture: Optional[str],
+):
+    """Transcribe audio verbatim using Whisper (Groq/OpenAI) or Gemini STT."""
+    kw_list = [k.strip() for k in keywords.split(",") if k.strip()]
+    stt_provider = provider or settings.DEFAULT_STT_PROVIDER
+
+    with console.status(f"[bold blue]Transcribing audio using {stt_provider.upper()} STT...", spinner="dots"):
+        transcriber = AudioTranscriber(provider=stt_provider)
+        try:
+            transcript = transcriber.transcribe(audio_path=audio, keywords=kw_list)
+        except Exception as e:
+            console.print(f"[bold red]Transcription failed:[/bold red] {e}")
+            sys.exit(1)
+
+    if course and lecture:
+        saved_p = save_transcript_only(
+            course_id=course,
+            lecture_id=lecture,
+            transcript_content=transcript,
+            stt_provider=stt_provider,
+            keywords=kw_list,
+        )
+        console.print(f"[bold green]Transcript saved to course repository:[/bold green] {saved_p}")
+    elif output:
+        out_p = Path(output)
+        out_p.write_text(transcript, encoding="utf-8")
+        console.print(f"[bold green]Saved transcript to:[/bold green] {out_p}")
+    else:
+        console.print(Panel(transcript, title="Verbatim Transcript Output"))
+
+
+@main.command(name="process")
+@click.option("--course", "-c", required=True, help="Course identifier (e.g. cs101).")
+@click.option("--lecture", "-l", required=True, help="Lecture identifier (e.g. lec01).")
+@click.option("--audio", "-a", required=True, type=click.Path(exists=True), help="Path to lecture audio recording.")
+@click.option("--title", "-t", default=None, help="Lecture title.")
+@click.option("--keywords", "-k", default="", help="Comma-separated technical keywords/jargon hints.")
+@click.option("--provider", "-p", default=None, type=click.Choice(["gemini", "groq", "openai"], case_sensitive=False), help="STT provider.")
+@click.option("--model", "-m", default=None, help="Gemini model override for synthesis.")
+@click.option("--compress/--no-compress", default=True, help="Whether to compress audio before STT.")
+@click.option("--bitrate", "-b", default=settings.AUDIO_BITRATE, help="Audio compression bitrate.")
+def process_cmd(
+    course: str,
+    lecture: str,
+    audio: str,
+    title: Optional[str],
+    keywords: str,
+    provider: Optional[str],
+    model: Optional[str],
+    compress: bool,
+    bitrate: str,
+):
+    """Full Audio Ingestion Pipeline: Compress -> Extract Transcript -> Synthesize Notes -> Persist."""
+    if not settings.validate_gemini_key():
+        console.print("[bold red]Error:[/bold red] GEMINI_API_KEY is not configured. Please set it in your .env file.")
+        sys.exit(1)
+
+    lecture_title = title or f"Lecture {lecture.upper()}"
+    kw_list = [k.strip() for k in keywords.split(",") if k.strip()]
+    stt_provider = provider or settings.DEFAULT_STT_PROVIDER
+    target_audio_path = Path(audio)
+    audio_stats = None
+
+    # Step 1: Compress Audio
+    if compress:
+        with console.status("[bold blue]Step 1/3: Compressing & downsampling audio...", spinner="dots"):
+            try:
+                target_audio_path, orig_meta, comp_meta = compress_audio(
+                    input_path=audio,
+                    bitrate=bitrate,
+                )
+                audio_stats = {
+                    "original_path": orig_meta.file_path,
+                    "original_size_mb": orig_meta.size_mb,
+                    "compressed_path": str(target_audio_path),
+                    "compressed_size_mb": comp_meta.size_mb,
+                    "duration_seconds": comp_meta.duration_seconds,
+                    "bitrate": bitrate,
+                }
+                console.print(
+                    f"[green]Audio compressed:[/green] {orig_meta.size_mb} MB -> "
+                    f"[bold green]{comp_meta.size_mb} MB[/bold green]"
+                )
+            except Exception as e:
+                console.print(f"[bold red]Audio compression error:[/bold red] {e}")
+                sys.exit(1)
+
+    # Step 2: Extract Transcript via STT
+    with console.status(f"[bold blue]Step 2/3: Extracting transcript using {stt_provider.upper()} STT...", spinner="dots"):
+        transcriber = AudioTranscriber(provider=stt_provider)
+        try:
+            transcript_text = transcriber.transcribe(
+                audio_path=target_audio_path,
+                keywords=kw_list,
+            )
+            console.print(f"[green]Transcript extracted:[/green] {len(transcript_text.split())} words")
+        except Exception as e:
+            console.print(f"[bold red]Transcription error:[/bold red] {e}")
+            sys.exit(1)
+
+    # Step 3: Synthesize Structured Notes from Transcript
+    with console.status(f"[bold blue]Step 3/3: Synthesizing notes with {model or settings.DEFAULT_MODEL}...", spinner="dots"):
+        synthesizer = NoteSynthesizer(model=model)
+        try:
+            notes_content = synthesizer.synthesize_from_transcript(
+                transcript=transcript_text,
+                lecture_title=lecture_title,
+                course_id=course,
+                keywords=kw_list,
+                model=model,
+            )
+        except Exception as e:
+            console.print(f"[bold red]Note synthesis error:[/bold red] {e}")
+            sys.exit(1)
+
+    # Step 4: Persist Notes, Transcript, and Metadata
+    notes_path, transcript_path, meta_path, _ = save_lecture(
+        course_id=course,
+        lecture_id=lecture,
+        title=lecture_title,
+        notes_content=notes_content,
+        transcript_content=transcript_text,
+        audio_meta=audio_stats,
+        keywords=kw_list,
+        synthesis_model=model or settings.DEFAULT_MODEL,
+        stt_provider=stt_provider,
+    )
+
+    console.print(Panel(
+        f"[bold green]Ingestion pipeline successfully completed![/bold green]\n\n"
+        f"• [bold]Course:[/bold] {course}\n"
+        f"• [bold]Lecture ID:[/bold] {lecture}\n"
+        f"• [bold]Title:[/bold] {lecture_title}\n"
+        f"• [bold]Transcript File:[/bold] {transcript_path}\n"
+        f"• [bold]Notes File:[/bold] {notes_path}\n"
+        f"• [bold]Metadata File:[/bold] {meta_path}",
+        title="✨ Ingestion Complete",
+        border_style="green",
+    ))
+
+
+@main.command(name="process-audio")
+@click.option("--course", "-c", required=True, help="Course identifier (e.g. cs101).")
+@click.option("--lecture", "-l", required=True, help="Lecture identifier (e.g. lec01).")
+@click.option("--audio", "-a", required=True, type=click.Path(exists=True), help="Path to lecture audio recording.")
+@click.option("--title", "-t", default=None, help="Lecture title.")
+@click.option("--keywords", "-k", default="", help="Comma-separated technical keywords/jargon hints.")
+@click.option("--provider", "-p", default=None, type=click.Choice(["gemini", "groq", "openai"], case_sensitive=False), help="STT provider.")
+@click.option("--model", "-m", default=None, help="Gemini model override.")
+@click.option("--compress/--no-compress", default=True, help="Whether to compress audio before sending.")
+@click.option("--bitrate", "-b", default=settings.AUDIO_BITRATE, help="Audio compression bitrate.")
+@click.pass_context
+def process_audio_alias(ctx, **kwargs):
+    """Alias for process command."""
+    ctx.forward(process_cmd)
+
+
+@main.command(name="synthesize")
+@click.option("--course", "-c", required=True, help="Course identifier.")
+@click.option("--lecture", "-l", required=True, help="Lecture identifier.")
+@click.option("--transcript", "-t", required=True, type=click.Path(exists=True), help="Path to transcript text file.")
+@click.option("--title", default=None, help="Lecture title.")
+@click.option("--keywords", "-k", default="", help="Comma-separated technical keywords.")
+@click.option("--model", "-m", default=None, help="Gemini model override.")
+def synthesize_cmd(
+    course: str,
+    lecture: str,
+    transcript: str,
+    title: Optional[str],
+    keywords: str,
+    model: Optional[str],
+):
+    """Synthesize structured notes from a text transcript file."""
+    if not settings.validate_gemini_key():
+        console.print("[bold red]Error:[/bold red] GEMINI_API_KEY is not configured.")
+        sys.exit(1)
+
+    transcript_text = Path(transcript).read_text(encoding="utf-8")
+    lecture_title = title or f"Lecture {lecture.upper()}"
+    kw_list = [k.strip() for k in keywords.split(",") if k.strip()]
+
+    with console.status("[bold blue]Synthesizing academic notes from transcript...", spinner="dots"):
+        synthesizer = NoteSynthesizer(model=model)
+        try:
+            notes_content = synthesizer.synthesize_from_transcript(
+                transcript=transcript_text,
+                lecture_title=lecture_title,
+                course_id=course,
+                keywords=kw_list,
+                model=model,
+            )
+        except Exception as e:
+            console.print(f"[bold red]Synthesis failed:[/bold red] {e}")
+            sys.exit(1)
+
+    notes_path, transcript_path, meta_path, _ = save_lecture(
+        course_id=course,
+        lecture_id=lecture,
+        title=lecture_title,
+        notes_content=notes_content,
+        transcript_content=transcript_text,
+        keywords=kw_list,
+        synthesis_model=model or settings.DEFAULT_MODEL,
+    )
+
+    console.print(f"[bold green]Synthesized notes saved to:[/bold green] {notes_path}")
+
+
+@main.command(name="list")
+@click.option("--course", "-c", default=None, help="Filter by course ID.")
+def list_cmd(course: Optional[str]):
+    """List stored courses and lecture notes."""
+    courses = [course] if course else list_courses()
+    if not courses:
+        console.print("[yellow]No courses found in local storage.[/yellow]")
+        return
+
+    for c in courses:
+        lectures = list_lectures(c)
+        table = Table(title=f"📚 Course: {c.upper()}", show_header=True)
+        table.add_column("Lecture ID", style="cyan")
+        table.add_column("Title", style="bold")
+        table.add_column("Transcript", style="magenta")
+        table.add_column("Created", style="dim")
+        table.add_column("Model", style="green")
+
+        if not lectures:
+            table.add_row("-", "No lectures ingested yet", "-", "-", "-")
+        else:
+            for lec in lectures:
+                has_transcript = "✓" if lec.transcript_file and Path(lec.transcript_file).exists() else "✗"
+                table.add_row(
+                    lec.lecture_id,
+                    lec.lecture_title,
+                    has_transcript,
+                    lec.created_at[:19].replace("T", " "),
+                    lec.synthesis_model or "-",
+                )
+
+        console.print(table)
+        console.print()
+
+
+@main.command(name="view")
+@click.option("--course", "-c", required=True, help="Course identifier.")
+@click.option("--lecture", "-l", required=True, help="Lecture identifier.")
+@click.option("--transcript", is_flag=True, default=False, help="View raw transcript instead of notes.")
+def view_cmd(course: str, lecture: str, transcript: bool):
+    """View synthesized lecture notes or raw transcript."""
+    try:
+        if transcript:
+            content = load_lecture_transcript(course, lecture)
+            console.print(Panel(content, title=f"Verbatim Transcript: {course.upper()} - {lecture}"))
+        else:
+            content = load_lecture_notes(course, lecture)
+            console.print(Markdown(content))
+    except Exception as e:
+        console.print(f"[bold red]Error loading content:[/bold red] {e}")
+        sys.exit(1)
+
+
+if __name__ == "__main__":
+    main()

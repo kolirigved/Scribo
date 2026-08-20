@@ -1,0 +1,29 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "scribo"
+version = "0.1.0"
+description = "Academic knowledge engine and ingestion pipeline"
+readme = "README.md"
+requires-python = ">=3.10"
+authors = [{ name = "Scribo Team" }]
+dependencies = [
+    "google-genai>=1.0.0",
+    "google-generativeai>=0.8.0",
+    "pydub>=0.25.1",
+    "audioop-lts>=0.2.0; python_version >= '3.13'",
+    "python-dotenv>=1.0.0",
+    "click>=8.1.0",
+    "rich>=13.0.0",
+    "pydantic>=2.0.0",
+    "pytest>=8.0.0",
+]
+
+[project.scripts]
+scribo = "scribo.cli:main"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
