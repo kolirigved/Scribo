@@ -82,7 +82,9 @@ def test_cli_process_pipeline(tmp_path: Path, monkeypatch):
     runner = CliRunner()
     with patch("scribo.cli.compress_audio") as mock_compress, \
          patch("scribo.cli.AudioTranscriber") as MockTranscriber, \
-         patch("scribo.cli.NoteSynthesizer") as MockSynthesizer:
+         patch("scribo.cli.NoteSynthesizer") as MockSynthesizer, \
+         patch("scribo.cli.VectorStore") as MockVectorStore, \
+         patch("scribo.cli.split_markdown_by_headers") as mock_split:
 
         from scribo.pipeline.audio.compressor import AudioMetadata
         dummy_meta = AudioMetadata(

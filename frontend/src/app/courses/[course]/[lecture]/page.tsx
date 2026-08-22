@@ -20,31 +20,67 @@ export default async function LecturePage({ params }: { params: Promise<{ course
   const data = await res.json();
 
   return (
-    <main style={{ padding: '2rem 4rem', fontFamily: 'system-ui, sans-serif', maxWidth: '1600px', margin: '0 auto', lineHeight: '1.6' }}>
-      <Link href={`/courses/${course}`} style={{ color: '#666', textDecoration: 'none', marginBottom: '2rem', display: 'inline-block' }}>
-        ← Back to {course.toUpperCase()}
-      </Link>
+    <main style={{ padding: '2rem 3rem', height: '100vh', display: 'flex', flexDirection: 'column' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', flexShrink: 0 }}>
+        <Link href={`/courses/${course}`} style={{ color: 'var(--text-muted)', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.95rem' }}>
+          ← Back to {course.toUpperCase()}
+        </Link>
+        <div style={{ textAlign: 'right' }}>
+          <span style={{ fontSize: '0.8rem', color: 'var(--primary)', fontWeight: 600, textTransform: 'uppercase', tracking: '0.05em' }}>Study Workspace</span>
+          <h2 style={{ fontSize: '1.25rem', fontWeight: 700, color: '#fff', margin: 0 }}>Lecture: {lecture.toUpperCase()}</h2>
+        </div>
+      </div>
       
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 450px', gap: '2rem', alignItems: 'start' }}>
-        <div style={{ background: '#fff', padding: '3rem', borderRadius: '12px', boxShadow: '0 4px 6px rgba(0,0,0,0.05)', overflowWrap: 'break-word', wordBreak: 'break-word', overflowX: 'auto', color: '#333' }}>
-        <ReactMarkdown 
-          remarkPlugins={[remarkMath]}
-          rehypePlugins={[rehypeKatex]}
-          components={{
-            h1: ({node, ...props}) => <h1 style={{ borderBottom: '2px solid #eee', paddingBottom: '0.5rem', marginTop: '2rem' }} {...props} />,
-            h2: ({node, ...props}) => <h2 style={{ color: '#2c3e50', marginTop: '1.5rem' }} {...props} />,
-            h3: ({node, ...props}) => <h3 style={{ color: '#34495e' }} {...props} />,
-            p: ({node, ...props}) => <p style={{ fontSize: '1.1rem', color: '#333', marginBottom: '1rem', whiteSpace: 'pre-wrap' }} {...props} />,
-            li: ({node, ...props}) => <li style={{ fontSize: '1.1rem', color: '#333', marginBottom: '0.5rem' }} {...props} />,
-            pre: ({node, ...props}) => <pre style={{ background: '#f8f9fa', padding: '1rem', borderRadius: '8px', overflowX: 'auto', marginBottom: '1rem', color: '#333' }} {...props} />,
-            code: ({node, ...props}) => <code style={{ background: '#f8f9fa', padding: '0.2rem 0.4rem', borderRadius: '4px', fontSize: '0.9em', color: '#e83e8c' }} {...props} />
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 450px', gap: '2rem', flex: 1, minHeight: 0, alignItems: 'stretch' }}>
+        {/* Left Column: Markdown Notes (Scrollable) */}
+        <div 
+          className="glass-panel" 
+          style={{ 
+            padding: '3rem', 
+            overflowY: 'auto', 
+            color: '#e5e7eb', 
+            lineHeight: '1.7',
+            fontSize: '1.05rem'
           }}
         >
-          {data.markdown}
-        </ReactMarkdown>
+          <ReactMarkdown 
+            remarkPlugins={[remarkMath]}
+            rehypePlugins={[rehypeKatex]}
+            components={{
+              h1: ({node, ...props}) => <h1 style={{ color: '#fff', fontSize: '2.2rem', fontWeight: 800, borderBottom: '1px solid var(--border)', paddingBottom: '0.8rem', marginTop: '0', marginBottom: '1.5rem' }} {...props} />,
+              h2: ({node, ...props}) => <h2 style={{ color: '#a5b4fc', fontSize: '1.6rem', fontWeight: 700, marginTop: '2.5rem', marginBottom: '1rem' }} {...props} />,
+              h3: ({node, ...props}) => <h3 style={{ color: '#cbd5e1', fontSize: '1.25rem', fontWeight: 600, marginTop: '1.8rem', marginBottom: '0.8rem' }} {...props} />,
+              p: ({node, ...props}) => <p style={{ marginBottom: '1.2rem', color: '#cbd5e1' }} {...props} />,
+              li: ({node, ...props}) => <li style={{ marginBottom: '0.6rem', marginLeft: '1.2rem', color: '#cbd5e1' }} {...props} />,
+              pre: ({node, ...props}) => (
+                <pre style={{ 
+                  background: 'rgba(0,0,0,0.4)', 
+                  padding: '1.2rem', 
+                  borderRadius: '8px', 
+                  overflowX: 'auto', 
+                  border: '1px solid var(--border)',
+                  marginBottom: '1.5rem',
+                  fontFamily: 'monospace'
+                }} {...props} />
+              ),
+              code: ({node, ...props}) => (
+                <code style={{ 
+                  background: 'rgba(0,0,0,0.3)', 
+                  padding: '0.2rem 0.4rem', 
+                  borderRadius: '4px', 
+                  fontSize: '0.9em', 
+                  color: '#f43f5e',
+                  fontFamily: 'monospace'
+                }} {...props} />
+              )
+            }}
+          >
+            {data.markdown}
+          </ReactMarkdown>
         </div>
         
-        <div style={{ position: 'sticky', top: '2rem', height: 'calc(100vh - 4rem)' }}>
+        {/* Right Column: Chat Component */}
+        <div style={{ height: '100%', minHeight: 0 }}>
           <Chat courseId={course} />
         </div>
       </div>
