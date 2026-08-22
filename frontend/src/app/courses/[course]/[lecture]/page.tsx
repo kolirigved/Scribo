@@ -4,6 +4,7 @@ import ReactMarkdown from 'react-markdown';
 import remarkMath from 'remark-math';
 import rehypeKatex from 'rehype-katex';
 import 'katex/dist/katex.min.css';
+import Chat from '@/components/Chat';
 
 export default async function LecturePage({ params }: { params: Promise<{ course: string, lecture: string }> }) {
   const { course, lecture } = await params;
@@ -19,12 +20,13 @@ export default async function LecturePage({ params }: { params: Promise<{ course
   const data = await res.json();
 
   return (
-    <main style={{ padding: '2rem 4rem', fontFamily: 'system-ui, sans-serif', maxWidth: '900px', margin: '0 auto', lineHeight: '1.6' }}>
+    <main style={{ padding: '2rem 4rem', fontFamily: 'system-ui, sans-serif', maxWidth: '1600px', margin: '0 auto', lineHeight: '1.6' }}>
       <Link href={`/courses/${course}`} style={{ color: '#666', textDecoration: 'none', marginBottom: '2rem', display: 'inline-block' }}>
         ← Back to {course.toUpperCase()}
       </Link>
       
-      <div style={{ background: '#fff', padding: '3rem', borderRadius: '12px', boxShadow: '0 4px 6px rgba(0,0,0,0.05)', overflowWrap: 'break-word', wordBreak: 'break-word', overflowX: 'auto', color: '#333' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 450px', gap: '2rem', alignItems: 'start' }}>
+        <div style={{ background: '#fff', padding: '3rem', borderRadius: '12px', boxShadow: '0 4px 6px rgba(0,0,0,0.05)', overflowWrap: 'break-word', wordBreak: 'break-word', overflowX: 'auto', color: '#333' }}>
         <ReactMarkdown 
           remarkPlugins={[remarkMath]}
           rehypePlugins={[rehypeKatex]}
@@ -40,9 +42,12 @@ export default async function LecturePage({ params }: { params: Promise<{ course
         >
           {data.markdown}
         </ReactMarkdown>
+        </div>
+        
+        <div style={{ position: 'sticky', top: '2rem', height: 'calc(100vh - 4rem)' }}>
+          <Chat courseId={course} />
+        </div>
       </div>
-      
-      {/* Interactive Audio/JSON features will go here in the future */}
     </main>
   );
 }
