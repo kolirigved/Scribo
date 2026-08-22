@@ -9,7 +9,7 @@ from google import genai
 from google.genai import types
 
 from scribo.config import settings
-from scribo.synthesis.prompts import build_transcription_prompt
+from scribo.pipeline.synthesis.prompts import build_transcription_prompt
 
 STTProvider = Literal["gemini", "groq", "openai"]
 

@@ -6,7 +6,7 @@ import wave
 from pathlib import Path
 import pytest
 
-from scribo.audio.compressor import (
+from scribo.pipeline.audio.compressor import (
     compress_audio,
     get_audio_metadata,
     check_ffmpeg,

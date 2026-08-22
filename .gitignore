@@ -44,9 +44,10 @@ env/
 .coverage
 htmlcov/
 
-# Data & Temp files
-data/
-temp/
+# Data and Storage
+backend/data/
+backend/temp/
+
 *.mp3
 *.m4a
 *.wav

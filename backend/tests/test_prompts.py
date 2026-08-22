@@ -1,6 +1,6 @@
 """Tests for synthesis and transcription prompts."""
 
-from scribo.synthesis.prompts import (
+from scribo.pipeline.synthesis.prompts import (
     SYSTEM_ACADEMIC_NOTE_PROMPT,
     build_audio_synthesis_prompt,
     build_transcript_synthesis_prompt,

@@ -12,9 +12,9 @@ from rich.markdown import Markdown
 
 from scribo import __version__
 from scribo.config import settings
-from scribo.audio.compressor import compress_audio, get_audio_metadata, check_ffmpeg
-from scribo.audio.transcriber import AudioTranscriber
-from scribo.synthesis.synthesizer import NoteSynthesizer
+from scribo.pipeline.audio.compressor import compress_audio, get_audio_metadata, check_ffmpeg
+from scribo.pipeline.audio.transcriber import AudioTranscriber
+from scribo.pipeline.synthesis.synthesizer import NoteSynthesizer
 from scribo.storage.local_store import (
     save_lecture,
     save_transcript_only,

@@ -6,7 +6,7 @@ from click.testing import CliRunner
 
 from scribo.cli import main
 from scribo.config import settings
-from scribo.audio.transcriber import TranscriptResult, TranscriptSegment
+from scribo.pipeline.audio.transcriber import TranscriptResult, TranscriptSegment
 
 
 def test_cli_info():
@@ -84,7 +84,7 @@ def test_cli_process_pipeline(tmp_path: Path, monkeypatch):
          patch("scribo.cli.AudioTranscriber") as MockTranscriber, \
          patch("scribo.cli.NoteSynthesizer") as MockSynthesizer:
 
-        from scribo.audio.compressor import AudioMetadata
+        from scribo.pipeline.audio.compressor import AudioMetadata
         dummy_meta = AudioMetadata(
             file_path=str(audio_file),
             format="mp3",

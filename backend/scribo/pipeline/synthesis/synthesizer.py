@@ -8,7 +8,7 @@ from google import genai
 from google.genai import types
 
 from scribo.config import settings
-from scribo.synthesis.prompts import (
+from scribo.pipeline.synthesis.prompts import (
     SYSTEM_ACADEMIC_NOTE_PROMPT,
     build_audio_synthesis_prompt,
     build_transcript_synthesis_prompt,

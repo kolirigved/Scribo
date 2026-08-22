@@ -4,7 +4,7 @@ from unittest.mock import MagicMock, patch
 from pathlib import Path
 import pytest
 
-from scribo.synthesis.synthesizer import NoteSynthesizer
+from scribo.pipeline.synthesis.synthesizer import NoteSynthesizer
 
 
 def test_synthesizer_missing_key():

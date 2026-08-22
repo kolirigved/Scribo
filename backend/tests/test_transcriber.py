@@ -4,7 +4,7 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 import pytest
 
-from scribo.audio.transcriber import (
+from scribo.pipeline.audio.transcriber import (
     AudioTranscriber,
     TranscriptResult,
     TranscriptSegment,
@@ -53,7 +53,7 @@ def test_transcriber_gemini_mocked(tmp_path: Path):
 
     transcriber = AudioTranscriber(provider="gemini", gemini_api_key="fake_key")
 
-    with patch("scribo.audio.transcriber.genai.Client") as MockGenaiClient:
+    with patch("scribo.pipeline.audio.transcriber.genai.Client") as MockGenaiClient:
         mock_client = MagicMock()
         MockGenaiClient.return_value = mock_client
 
@@ -79,7 +79,7 @@ def test_transcriber_groq_mocked(tmp_path: Path):
 
     transcriber = AudioTranscriber(provider="groq", groq_api_key="fake_groq_key")
 
-    with patch("scribo.audio.transcriber.httpx.post") as mock_post:
+    with patch("scribo.pipeline.audio.transcriber.httpx.post") as mock_post:
         mock_response = MagicMock()
         mock_response.status_code = 200
         mock_response.json.return_value = {
