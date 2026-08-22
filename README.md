@@ -1,42 +1,51 @@
 # Scribo 📜
 
-**Scribo** is an academic knowledge engine and ingestion pipeline designed to process lecture recordings and slide decks into structured notes, indexing them for multi-lecture revision and grounded question answering.
+**Scribo** is an academic knowledge engine and ingestion pipeline designed to process lecture recordings and slide decks into structured LaTeX Markdown notes, indexing them for multi-lecture revision and grounded question answering (RAG).
 
-The repository is structured as a **Monorepo**:
-- **`backend/`**: Contains the core audio/synthesis pipeline (CLI) and a FastAPI server for data retrieval.
-- **`frontend/`**: Contains a Next.js (React) web UI with Markdown & LaTeX rendering.
+The repository is organized as a modern **Monorepo**:
+- **`backend/`**: Python engine containing the audio ingestion pipeline, Gemini synthesis, local ChromaDB vector store, RAG query engine, CLI tools, and FastAPI backend.
+- **`frontend/`**: Next.js 15 web application featuring a dark-themed glassmorphism interface, interactive LaTeX math rendering, and a real-time RAG study assistant.
 
-## Features (Phase 1 & 2)
+---
 
-- **Audio Downsampling & Compression**: Converts multi-channel recordings (`.m4a`, `.wav`, `.mp3`) into single-channel mono MP3 at 32–48 kbps using `ffmpeg`/`pydub`.
+## ✨ Features
+
+- **Audio Compression & Preprocessing**: Converts multi-channel recordings (`.m4a`, `.wav`, `.mp3`) into single-channel mono MP3 at 32–48 kbps using `ffmpeg`/`pydub`.
 - **Two-Stage Audio $\to$ Transcript $\to$ Notes Pipeline**:
-  1. Extract verbatim transcripts with strict `[MM:SS]` timestamps using **Whisper** (Groq / OpenAI) or **Gemini STT**.
+  1. Extract verbatim transcripts with exact `[MM:SS]` segment timestamps using **Whisper** (Groq / OpenAI) or **Gemini STT**.
   2. Synthesize structured academic notes from the extracted transcript using **Gemini**.
-- **Interactive UI & LaTeX Rendering**: Beautifully formats mathematical formulations, with timestamped segments ready for audio seeking in the Next.js frontend.
-- **Local Data Persistence**:
-  - `backend/data/courses/<course_id>/lecture_<id>.md` (Synthesized notes)
-  - `backend/data/courses/<course_id>/lecture_<id>_transcript.txt` (Verbatim transcript)
-  - `backend/data/courses/<course_id>/lecture_<id>_transcript.json` (Structured segments for UI player)
+- **Structure-Aware Chunking & Local Vector DB (RAG)**:
+  - Header-based Markdown chunker that preserves section hierarchies and timestamp metadata.
+  - Local **ChromaDB** vector storage with embeddings via Google's `gemini-embedding-2`.
+  - Grounded question-answering with inline citations (`[Course - Lecture @ MM:SS]`).
+- **Interactive Web Interface**:
+  - Split-screen workspace (interactive LaTeX notes on the left, RAG chat assistant on the right).
+  - Glassmorphic dark UI tailored for distraction-free studying.
 
 ---
 
 ## 🚀 Quickstart
 
 ### 1. Setup Python Backend & CLI
+
 ```bash
+# Create and activate virtual environment
 python3 -m venv .venv
 source .venv/bin/activate
+
+# Install backend dependencies & editable package
 pip install -r backend/requirements.txt
 pip install -e backend/ --no-deps
 ```
 
-Configure backend API keys:
+Configure backend environment variables:
 ```bash
 cp backend/.env.example backend/.env
 ```
-Edit `backend/.env` to include your `GEMINI_API_KEY` (and optionally Groq/OpenAI for Whisper).
+Add your `GEMINI_API_KEY` (and optional `GROQ_API_KEY` / `OPENAI_API_KEY` for Whisper STT) to `backend/.env`.
 
 ### 2. Setup Next.js Frontend
+
 ```bash
 cd frontend
 npm install
@@ -46,31 +55,35 @@ cd ..
 
 ---
 
-## 💻 Running the Web App
+## 💻 Running the Web Application
 
-You need to run both the FastAPI server and the Next.js frontend to use the web viewer.
+To use the interactive web UI, run both the FastAPI backend and Next.js frontend:
 
-**Terminal 1: Backend API**
+**Terminal 1: FastAPI Backend**
 ```bash
 cd backend
 ../.venv/bin/uvicorn api.main:app --reload --port 8000
 ```
 
-**Terminal 2: Frontend Web UI**
+**Terminal 2: Next.js Frontend**
 ```bash
 cd frontend
 npm run dev
 ```
-Open **http://localhost:3000** in your browser!
+
+Open [http://localhost:3000](http://localhost:3000) in your browser!
 
 ---
 
-## 🛠️ Usage (Command Line Interface)
+## 🛠️ CLI Usage
 
-The Scribo CLI is used for headless background processing of lecture audio. Ensure your `.venv` is activated.
+The Scribo CLI is available for background processing and terminal-based interactions:
 
 ```bash
-# Run full pipeline (Audio -> Transcript -> Notes -> Storage)
+# Check system and API key status
+scribo info
+
+# Run full ingestion pipeline (Compress -> Transcribe -> Synthesize -> Index into ChromaDB)
 scribo process \
   --course eng448 \
   --lecture lec01 \
@@ -80,12 +93,26 @@ scribo process \
 # Extract transcript only
 scribo transcribe --course cs101 --lecture lec01 --audio /path/to/lecture.m4a
 
-# Synthesize notes from an existing transcript
+# Synthesize notes from an existing transcript file
 scribo synthesize --course cs101 --lecture lec01 --transcript /path/to/transcript.txt --title "Lecture 1"
 
-# List ingested lectures
-scribo list --course cs101
+# Query the knowledge base via CLI using Grounded RAG
+scribo ask --course eng448 "What is zero copula?"
 
-# View synthesized notes or raw transcript in terminal
-scribo view --course cs101 --lecture lec01
+# List all ingested courses and lectures
+scribo list --course eng448
+
+# View synthesized notes or transcripts in terminal
+scribo view --course eng448 --lecture lec01
+scribo view --course eng448 --lecture lec01 --transcript
+```
+
+---
+
+## 🧪 Testing
+
+The backend test suite is fully isolated and mocked to ensure zero API token consumption:
+
+```bash
+.venv/bin/pytest backend/tests/
 ```
