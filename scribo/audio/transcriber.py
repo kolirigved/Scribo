@@ -24,9 +24,9 @@ class AudioTranscriber:
         openai_api_key: Optional[str] = None,
     ):
         self.provider = (provider or settings.DEFAULT_STT_PROVIDER).lower()
-        self.gemini_api_key = gemini_api_key or settings.GEMINI_API_KEY
-        self.groq_api_key = groq_api_key or settings.GROQ_API_KEY
-        self.openai_api_key = openai_api_key or settings.OPENAI_API_KEY
+        self.gemini_api_key = gemini_api_key if gemini_api_key is not None else settings.GEMINI_API_KEY
+        self.groq_api_key = groq_api_key if groq_api_key is not None else settings.GROQ_API_KEY
+        self.openai_api_key = openai_api_key if openai_api_key is not None else settings.OPENAI_API_KEY
 
     def transcribe(
         self,

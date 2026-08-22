@@ -26,7 +26,7 @@ class Settings:
         self.OPENAI_API_KEY: str = os.getenv("OPENAI_API_KEY", "")
 
         # Model & Provider Defaults
-        self.DEFAULT_MODEL: str = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
+        self.DEFAULT_MODEL: str = os.getenv("GEMINI_MODEL", "gemini-3.6-flash")
         self.DEFAULT_STT_PROVIDER: str = os.getenv("STT_PROVIDER", "gemini")  # "gemini", "groq", "openai"
 
         # Audio Compression Defaults

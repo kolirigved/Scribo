@@ -7,7 +7,7 @@ SYSTEM_ACADEMIC_NOTE_PROMPT = """You are Scribo, an elite academic knowledge eng
 Your Core Rules:
 1. NO DISFLUENCIES OR CONVERSATIONAL FILLER:
    - Strip out filler words ("uh", "um", "like", "you know", "basically", etc.).
-   - Discard administrative chatter, tangents, microphone tests, and classroom logistics.
+   - Discard microphone tests and irrelevant small talk.
 2. RIGOROUS ACADEMIC STRUCTURE:
    - Organize hierarchically using standard Markdown headings:
      # <Lecture Title>
@@ -17,12 +17,16 @@ Your Core Rules:
      ## Mathematical Formulations & Key Formulas (if applicable)
      ## Practical Examples & Applications
      ## Review Questions & Key Takeaways
-3. MATHEMATICAL & TECHNICAL ACCURACY:
+     ## Action Items & Next Steps
+3. ACTION ITEMS & ASSIGNED TASKS:
+   - In the "## Action Items & Next Steps" section, explicitly capture any assignments, homework, assigned readings, paper presentations, project deadlines, or preparation tasks mentioned by the professor.
+   - If no specific tasks or readings were assigned in the lecture, state: "None explicitly assigned in this lecture."
+4. MATHEMATICAL & TECHNICAL ACCURACY:
    - Format all mathematical equations, variables, and symbols in LaTeX notation:
      - Use `$inline$` for in-text symbols and short expressions.
      - Use `$$display$$` for multi-line or prominent equations.
    - Accurately preserve technical jargon, theorem names, and definitions.
-4. FAITHFULNESS & ZERO HALLUCINATION:
+5. FAITHFULNESS & ZERO HALLUCINATION:
    - Ground everything strictly in the provided lecture content.
    - Do not invent concepts not discussed in the material.
 """
@@ -47,7 +51,7 @@ def build_audio_synthesis_prompt(
         parts.append(f"- Technical Keywords & Key Terminology: {kw_str}")
 
     parts.append(
-        "\nEnsure the notes are clean, structured with Markdown headings, and formatted with LaTeX formulas where applicable."
+        "\nEnsure the notes are clean, structured with Markdown headings (including Executive Summary, Core Topics, Detailed Explanations, Review Questions, and Action Items & Next Steps), and formatted with LaTeX formulas where applicable."
     )
     return "\n".join(parts)
 
@@ -68,6 +72,10 @@ def build_transcript_synthesis_prompt(
     if keywords:
         kw_str = ", ".join(keywords)
         header_parts.append(f"- Technical Keywords & Terminology: {kw_str}")
+
+    header_parts.append(
+        "- Make sure to include an '## Action Items & Next Steps' section at the end for any readings, assignments, or instructions given by the instructor."
+    )
 
     header = "\n".join(header_parts)
     return f"{header}\n\n--- TRANSCRIPT START ---\n{transcript}\n--- TRANSCRIPT END ---"

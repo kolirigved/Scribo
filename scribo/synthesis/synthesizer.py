@@ -20,7 +20,7 @@ class NoteSynthesizer:
     """Synthesizes academic lecture notes from audio recordings or transcripts using Gemini."""
 
     def __init__(self, api_key: Optional[str] = None, model: Optional[str] = None):
-        self.api_key = api_key or settings.GEMINI_API_KEY
+        self.api_key = api_key if api_key is not None else settings.GEMINI_API_KEY
         self.model = model or settings.DEFAULT_MODEL
         self._client: Optional[genai.Client] = None
 
