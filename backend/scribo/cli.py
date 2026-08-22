@@ -23,6 +23,9 @@ from scribo.storage.local_store import (
     list_courses,
     list_lectures,
 )
+from scribo.rag.chunker import split_markdown_by_headers
+from scribo.rag.vector_store import VectorStore
+from scribo.rag.query_engine import QueryEngine
 
 console = Console()
 
@@ -274,6 +277,16 @@ def process_cmd(
         border_style="green",
     ))
 
+    # Step 5: Index into ChromaDB
+    with console.status("[bold blue]Step 5: Indexing chunks into ChromaDB...", spinner="dots"):
+        try:
+            chunks = split_markdown_by_headers(notes_content, course, lecture)
+            vs = VectorStore()
+            vs.add_chunks(chunks)
+            console.print(f"[green]Indexed {len(chunks)} chunks into vector store.[/green]")
+        except Exception as e:
+            console.print(f"[bold red]Indexing error:[/bold red] {e}")
+
 
 @main.command(name="process-audio")
 @click.option("--course", "-c", required=True, help="Course identifier (e.g. cs101).")
@@ -393,6 +406,33 @@ def view_cmd(course: str, lecture: str, transcript: bool):
     except Exception as e:
         console.print(f"[bold red]Error loading content:[/bold red] {e}")
         sys.exit(1)
+
+
+@main.command(name="ask")
+@click.argument("question")
+@click.option("--course", "-c", default=None, help="Optional course identifier to filter search.")
+def ask_cmd(question: str, course: Optional[str]):
+    """Query the knowledge base using grounded RAG."""
+    with console.status("[bold blue]Querying vector base and synthesizing answer...", spinner="dots"):
+        try:
+            engine = QueryEngine()
+            result = engine.query(question, course_id=course)
+        except Exception as e:
+            console.print(f"[bold red]Query failed:[/bold red] {e}")
+            sys.exit(1)
+
+    console.print(Panel(
+        Markdown(result["answer"]),
+        title="🤖 Scribo RAG Response",
+        border_style="blue"
+    ))
+    
+    if result["citations"]:
+        console.print("\n[bold dim]Retrieved Citations:[/bold dim]")
+        for cite in result["citations"]:
+            meta = cite["metadata"]
+            ts = f" @ {meta.get('timestamp', '')}" if meta.get("timestamp") else ""
+            console.print(f"• [dim]{meta['course_id'].upper()} - {meta['lecture_id']}{ts}: {meta['header']}[/dim]")
 
 
 if __name__ == "__main__":

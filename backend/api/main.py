@@ -1,4 +1,5 @@
 from fastapi import FastAPI, HTTPException
+from pydantic import BaseModel
 from fastapi.middleware.cors import CORSMiddleware
 from pathlib import Path
 import json
@@ -65,3 +66,16 @@ def get_lecture_details(course_id: str, lecture_id: str):
         "markdown": markdown_content,
         "segments": transcript_segments
     }
+
+class QueryRequest(BaseModel):
+    query: str
+    course_id: str | None = None
+
+@app.post("/query")
+def query_rag(request: QueryRequest):
+    from scribo.rag.query_engine import QueryEngine
+    try:
+        engine = QueryEngine()
+        return engine.query(request.query, course_id=request.course_id)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
