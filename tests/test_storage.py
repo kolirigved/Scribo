@@ -6,6 +6,7 @@ from scribo.storage.local_store import (
     save_transcript_only,
     load_lecture_notes,
     load_lecture_transcript,
+    load_lecture_transcript_json,
     load_lecture_meta,
     list_courses,
     list_lectures,
@@ -18,7 +19,8 @@ def test_save_and_load_lecture(tmp_path: Path, monkeypatch):
     monkeypatch.setattr(settings, "COURSES_DATA_DIR", tmp_path)
 
     notes_content = "# Lecture 1: Calculus\n\n## Limits\nDefinition of limits."
-    transcript_content = "Welcome everyone. Today we discuss limits in calculus."
+    transcript_content = "[00:00] Welcome everyone. Today we discuss limits in calculus."
+    segments = [{"id": 0, "start": 0.0, "end": 10.0, "text": "Welcome everyone."}]
     audio_meta = {"duration_seconds": 120.5, "compressed_size_mb": 1.2}
 
     notes_p, trans_p, meta_p, meta = save_lecture(
@@ -27,10 +29,11 @@ def test_save_and_load_lecture(tmp_path: Path, monkeypatch):
         title="Calculus Introduction",
         notes_content=notes_content,
         transcript_content=transcript_content,
+        transcript_segments=segments,
         audio_meta=audio_meta,
         keywords=["limits", "derivatives"],
-        synthesis_model="gemini-2.5-flash",
-        stt_provider="gemini",
+        synthesis_model="gemini-3.6-flash",
+        stt_provider="groq",
     )
 
     assert notes_p.exists()
@@ -39,7 +42,8 @@ def test_save_and_load_lecture(tmp_path: Path, monkeypatch):
     assert isinstance(meta, LectureMetadata)
     assert meta.course_id == "math101"
     assert meta.lecture_id == "lec01"
-    assert meta.stt_provider == "gemini"
+    assert meta.stt_provider == "groq"
+    assert meta.transcript_json_file is not None
 
     # Test loading notes and transcript
     loaded_notes = load_lecture_notes("math101", "lec01")
@@ -47,6 +51,10 @@ def test_save_and_load_lecture(tmp_path: Path, monkeypatch):
 
     loaded_transcript = load_lecture_transcript("math101", "lec01")
     assert loaded_transcript == transcript_content
+
+    loaded_json = load_lecture_transcript_json("math101", "lec01")
+    assert loaded_json["course_id"] == "math101"
+    assert len(loaded_json["segments"]) == 1
 
     loaded_meta = load_lecture_meta("math101", "lec01")
     assert loaded_meta.lecture_title == "Calculus Introduction"
@@ -65,10 +73,12 @@ def test_save_and_load_lecture(tmp_path: Path, monkeypatch):
 def test_save_transcript_only(tmp_path: Path, monkeypatch):
     monkeypatch.setattr(settings, "COURSES_DATA_DIR", tmp_path)
 
-    saved_p = save_transcript_only(
+    saved_p, saved_json = save_transcript_only(
         course_id="cs101",
         lecture_id="lec02",
-        transcript_content="Audio transcript text.",
+        transcript_content="[00:00] Audio transcript text.",
+        transcript_segments=[{"id": 0, "start": 0.0, "end": 5.0, "text": "Audio transcript text."}],
     )
     assert saved_p.exists()
-    assert load_lecture_transcript("cs101", "lec02") == "Audio transcript text."
+    assert saved_json.exists()
+    assert load_lecture_transcript("cs101", "lec02") == "[00:00] Audio transcript text."

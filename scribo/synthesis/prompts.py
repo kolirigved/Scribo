@@ -18,15 +18,18 @@ Your Core Rules:
      ## Practical Examples & Applications
      ## Review Questions & Key Takeaways
      ## Action Items & Next Steps
-3. ACTION ITEMS & ASSIGNED TASKS:
+3. TIMESTAMP ANCHORING:
+   - When the input transcript contains timestamp markers (e.g., `[MM:SS]` or `[HH:MM:SS]`), attach the corresponding timestamp anchor to major section headings, key concept introductions, or case studies (for example: `### 1. Syntactic Organization & Non-Finite Verbs [04:15]`).
+   - This enables readers and interactive players to cross-reference the exact moment in the audio/video.
+4. ACTION ITEMS & ASSIGNED TASKS:
    - In the "## Action Items & Next Steps" section, explicitly capture any assignments, homework, assigned readings, paper presentations, project deadlines, or preparation tasks mentioned by the professor.
    - If no specific tasks or readings were assigned in the lecture, state: "None explicitly assigned in this lecture."
-4. MATHEMATICAL & TECHNICAL ACCURACY:
+5. MATHEMATICAL & TECHNICAL ACCURACY:
    - Format all mathematical equations, variables, and symbols in LaTeX notation:
      - Use `$inline$` for in-text symbols and short expressions.
      - Use `$$display$$` for multi-line or prominent equations.
    - Accurately preserve technical jargon, theorem names, and definitions.
-5. FAITHFULNESS & ZERO HALLUCINATION:
+6. FAITHFULNESS & ZERO HALLUCINATION:
    - Ground everything strictly in the provided lecture content.
    - Do not invent concepts not discussed in the material.
 """
@@ -73,6 +76,9 @@ def build_transcript_synthesis_prompt(
         kw_str = ", ".join(keywords)
         header_parts.append(f"- Technical Keywords & Terminology: {kw_str}")
 
+    header_parts.append(
+        "- Include timestamp anchors (e.g. `[MM:SS]`) on major subheadings and concept introductions based on the transcript time tags."
+    )
     header_parts.append(
         "- Make sure to include an '## Action Items & Next Steps' section at the end for any readings, assignments, or instructions given by the instructor."
     )

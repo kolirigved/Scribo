@@ -1,10 +1,35 @@
-"""Tests for AudioTranscriber STT engine."""
+"""Tests for AudioTranscriber STT engine with timestamps."""
 
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 import pytest
 
-from scribo.audio.transcriber import AudioTranscriber
+from scribo.audio.transcriber import (
+    AudioTranscriber,
+    TranscriptResult,
+    TranscriptSegment,
+    format_seconds_to_timestamp,
+    group_segments_into_paragraphs,
+)
+
+
+def test_format_seconds_to_timestamp():
+    assert format_seconds_to_timestamp(45.2) == "00:45"
+    assert format_seconds_to_timestamp(125.0) == "02:05"
+    assert format_seconds_to_timestamp(3665.0) == "01:01:05"
+
+
+def test_group_segments_into_paragraphs():
+    segments = [
+        TranscriptSegment(id=0, start=0.0, end=10.0, text="Hello students."),
+        TranscriptSegment(id=1, start=10.5, end=25.0, text="Today we discuss syntax."),
+        TranscriptSegment(id=2, start=35.0, end=50.0, text="Now let's examine verbs."),
+    ]
+    formatted = group_segments_into_paragraphs(segments, group_interval_seconds=30.0)
+    assert "[00:00]" in formatted
+    assert "[00:35]" in formatted
+    assert "Hello students. Today we discuss syntax." in formatted
+    assert "Now let's examine verbs." in formatted
 
 
 def test_transcriber_unsupported_provider(tmp_path: Path):
@@ -37,12 +62,13 @@ def test_transcriber_gemini_mocked(tmp_path: Path):
         mock_client.files.upload.return_value = mock_file_ref
 
         mock_response = MagicMock()
-        mock_response.text = "Hello students, today is lecture one."
+        mock_response.text = "[00:00] Hello students, today is lecture one."
         mock_client.models.generate_content.return_value = mock_response
 
-        transcript = transcriber.transcribe(audio_file, keywords=["Fourier", "Nyquist"])
+        res = transcriber.transcribe(audio_file, keywords=["Fourier", "Nyquist"])
 
-        assert transcript == "Hello students, today is lecture one."
+        assert isinstance(res, TranscriptResult)
+        assert "[00:00]" in res.formatted_text
         mock_client.files.upload.assert_called_once_with(file=str(audio_file))
         mock_client.files.delete.assert_called_once_with(name="files/test_audio")
 
@@ -56,13 +82,20 @@ def test_transcriber_groq_mocked(tmp_path: Path):
     with patch("scribo.audio.transcriber.httpx.post") as mock_post:
         mock_response = MagicMock()
         mock_response.status_code = 200
-        mock_response.text = "This is a transcript from Groq Whisper."
+        mock_response.json.return_value = {
+            "text": "This is a transcript from Groq Whisper.",
+            "language": "english",
+            "duration": 15.0,
+            "segments": [
+                {"id": 0, "start": 0.0, "end": 5.0, "text": "This is a transcript"},
+                {"id": 1, "start": 5.1, "end": 15.0, "text": "from Groq Whisper."},
+            ],
+        }
         mock_post.return_value = mock_response
 
-        transcript = transcriber.transcribe(audio_file, keywords=["Kalman"])
+        res = transcriber.transcribe(audio_file, keywords=["Kalman"])
 
-        assert transcript == "This is a transcript from Groq Whisper."
-        mock_post.assert_called_once()
-        call_kwargs = mock_post.call_args.kwargs
-        assert "Authorization" in call_kwargs["headers"]
-        assert call_kwargs["data"]["prompt"] == "Kalman"
+        assert isinstance(res, TranscriptResult)
+        assert res.raw_text == "This is a transcript from Groq Whisper."
+        assert len(res.segments) == 2
+        assert "[00:00]" in res.formatted_text

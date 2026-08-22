@@ -126,33 +126,37 @@ def transcribe_cmd(
     course: Optional[str],
     lecture: Optional[str],
 ):
-    """Transcribe audio verbatim using Whisper (Groq/OpenAI) or Gemini STT."""
+    """Transcribe audio with segment timestamps using Whisper (Groq/OpenAI) or Gemini STT."""
     kw_list = [k.strip() for k in keywords.split(",") if k.strip()]
     stt_provider = provider or settings.DEFAULT_STT_PROVIDER
 
     with console.status(f"[bold blue]Transcribing audio using {stt_provider.upper()} STT...", spinner="dots"):
         transcriber = AudioTranscriber(provider=stt_provider)
         try:
-            transcript = transcriber.transcribe(audio_path=audio, keywords=kw_list)
+            transcript_res = transcriber.transcribe(audio_path=audio, keywords=kw_list)
         except Exception as e:
             console.print(f"[bold red]Transcription failed:[/bold red] {e}")
             sys.exit(1)
 
     if course and lecture:
-        saved_p = save_transcript_only(
+        segments_dict = [s.model_dump() for s in transcript_res.segments]
+        saved_txt, saved_json = save_transcript_only(
             course_id=course,
             lecture_id=lecture,
-            transcript_content=transcript,
+            transcript_content=transcript_res.formatted_text,
+            transcript_segments=segments_dict,
             stt_provider=stt_provider,
             keywords=kw_list,
         )
-        console.print(f"[bold green]Transcript saved to course repository:[/bold green] {saved_p}")
+        console.print(f"[bold green]Formatted transcript saved:[/bold green] {saved_txt}")
+        if saved_json:
+            console.print(f"[bold green]Segment JSON saved:[/bold green] {saved_json}")
     elif output:
         out_p = Path(output)
-        out_p.write_text(transcript, encoding="utf-8")
+        out_p.write_text(transcript_res.formatted_text, encoding="utf-8")
         console.print(f"[bold green]Saved transcript to:[/bold green] {out_p}")
     else:
-        console.print(Panel(transcript, title="Verbatim Transcript Output"))
+        console.print(Panel(transcript_res.formatted_text, title="Timestamped Transcript Output"))
 
 
 @main.command(name="process")
@@ -176,7 +180,7 @@ def process_cmd(
     compress: bool,
     bitrate: str,
 ):
-    """Full Audio Ingestion Pipeline: Compress -> Extract Transcript -> Synthesize Notes -> Persist."""
+    """Full Audio Ingestion Pipeline: Compress -> Timestamped Transcript -> Synthesize Notes -> Persist."""
     if not settings.validate_gemini_key():
         console.print("[bold red]Error:[/bold red] GEMINI_API_KEY is not configured. Please set it in your .env file.")
         sys.exit(1)
@@ -211,15 +215,18 @@ def process_cmd(
                 console.print(f"[bold red]Audio compression error:[/bold red] {e}")
                 sys.exit(1)
 
-    # Step 2: Extract Transcript via STT
-    with console.status(f"[bold blue]Step 2/3: Extracting transcript using {stt_provider.upper()} STT...", spinner="dots"):
+    # Step 2: Extract Timestamped Transcript via STT
+    with console.status(f"[bold blue]Step 2/3: Extracting timestamped transcript using {stt_provider.upper()} STT...", spinner="dots"):
         transcriber = AudioTranscriber(provider=stt_provider)
         try:
-            transcript_text = transcriber.transcribe(
+            transcript_res = transcriber.transcribe(
                 audio_path=target_audio_path,
                 keywords=kw_list,
             )
-            console.print(f"[green]Transcript extracted:[/green] {len(transcript_text.split())} words")
+            console.print(
+                f"[green]Transcript extracted:[/green] {len(transcript_res.raw_text.split())} words, "
+                f"{len(transcript_res.segments)} timestamped segments"
+            )
         except Exception as e:
             console.print(f"[bold red]Transcription error:[/bold red] {e}")
             sys.exit(1)
@@ -229,7 +236,7 @@ def process_cmd(
         synthesizer = NoteSynthesizer(model=model)
         try:
             notes_content = synthesizer.synthesize_from_transcript(
-                transcript=transcript_text,
+                transcript=transcript_res.formatted_text,
                 lecture_title=lecture_title,
                 course_id=course,
                 keywords=kw_list,
@@ -239,13 +246,15 @@ def process_cmd(
             console.print(f"[bold red]Note synthesis error:[/bold red] {e}")
             sys.exit(1)
 
-    # Step 4: Persist Notes, Transcript, and Metadata
-    notes_path, transcript_path, meta_path, _ = save_lecture(
+    # Step 4: Persist Notes, Formatted Transcript, Segment JSON, and Metadata
+    segments_dict = [s.model_dump() for s in transcript_res.segments]
+    notes_path, transcript_path, meta_path, meta = save_lecture(
         course_id=course,
         lecture_id=lecture,
         title=lecture_title,
         notes_content=notes_content,
-        transcript_content=transcript_text,
+        transcript_content=transcript_res.formatted_text,
+        transcript_segments=segments_dict,
         audio_meta=audio_stats,
         keywords=kw_list,
         synthesis_model=model or settings.DEFAULT_MODEL,
@@ -257,7 +266,8 @@ def process_cmd(
         f"• [bold]Course:[/bold] {course}\n"
         f"• [bold]Lecture ID:[/bold] {lecture}\n"
         f"• [bold]Title:[/bold] {lecture_title}\n"
-        f"• [bold]Transcript File:[/bold] {transcript_path}\n"
+        f"• [bold]Transcript Text:[/bold] {transcript_path}\n"
+        f"• [bold]Transcript JSON:[/bold] {meta.transcript_json_file}\n"
         f"• [bold]Notes File:[/bold] {notes_path}\n"
         f"• [bold]Metadata File:[/bold] {meta_path}",
         title="✨ Ingestion Complete",
@@ -370,13 +380,13 @@ def list_cmd(course: Optional[str]):
 @main.command(name="view")
 @click.option("--course", "-c", required=True, help="Course identifier.")
 @click.option("--lecture", "-l", required=True, help="Lecture identifier.")
-@click.option("--transcript", is_flag=True, default=False, help="View raw transcript instead of notes.")
+@click.option("--transcript", is_flag=True, default=False, help="View formatted transcript instead of notes.")
 def view_cmd(course: str, lecture: str, transcript: bool):
-    """View synthesized lecture notes or raw transcript."""
+    """View synthesized lecture notes or formatted timestamped transcript."""
     try:
         if transcript:
             content = load_lecture_transcript(course, lecture)
-            console.print(Panel(content, title=f"Verbatim Transcript: {course.upper()} - {lecture}"))
+            console.print(Panel(content, title=f"Transcript: {course.upper()} - {lecture}"))
         else:
             content = load_lecture_notes(course, lecture)
             console.print(Markdown(content))

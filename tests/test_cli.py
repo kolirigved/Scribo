@@ -6,6 +6,7 @@ from click.testing import CliRunner
 
 from scribo.cli import main
 from scribo.config import settings
+from scribo.audio.transcriber import TranscriptResult, TranscriptSegment
 
 
 def test_cli_info():
@@ -55,7 +56,12 @@ def test_cli_transcribe_cmd(tmp_path: Path, monkeypatch):
     runner = CliRunner()
     with patch("scribo.cli.AudioTranscriber") as MockTranscriber:
         mock_instance = MagicMock()
-        mock_instance.transcribe.return_value = "Hello and welcome to the class."
+        mock_instance.transcribe.return_value = TranscriptResult(
+            raw_text="Hello and welcome to the class.",
+            formatted_text="[00:00] Hello and welcome to the class.",
+            segments=[TranscriptSegment(id=0, start=0.0, end=5.0, text="Hello and welcome to the class.")],
+            provider="groq",
+        )
         MockTranscriber.return_value = mock_instance
 
         result = runner.invoke(
@@ -63,7 +69,7 @@ def test_cli_transcribe_cmd(tmp_path: Path, monkeypatch):
             ["transcribe", "-a", str(audio_file), "-c", "cs101", "-l", "lec01"],
         )
         assert result.exit_code == 0
-        assert "Transcript saved" in result.output
+        assert "Formatted transcript saved" in result.output
 
 
 def test_cli_process_pipeline(tmp_path: Path, monkeypatch):
@@ -91,7 +97,12 @@ def test_cli_process_pipeline(tmp_path: Path, monkeypatch):
         mock_compress.return_value = (audio_file, dummy_meta, dummy_meta)
 
         trans_inst = MagicMock()
-        trans_inst.transcribe.return_value = "Transcript: Machine learning overview."
+        trans_inst.transcribe.return_value = TranscriptResult(
+            raw_text="Machine learning overview.",
+            formatted_text="[00:00] Machine learning overview.",
+            segments=[TranscriptSegment(id=0, start=0.0, end=5.0, text="Machine learning overview.")],
+            provider="groq",
+        )
         MockTranscriber.return_value = trans_inst
 
         synth_inst = MagicMock()
