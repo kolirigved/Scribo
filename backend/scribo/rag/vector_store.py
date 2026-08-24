@@ -36,7 +36,7 @@ class VectorStore:
                 meta["timestamp"] = ""
             metadatas.append(meta)
             
-        self.collection.add(
+        self.collection.upsert(
             documents=texts,
             embeddings=embeddings,
             metadatas=metadatas,
@@ -47,7 +47,7 @@ class VectorStore:
         """Search the vector store for a query, optionally filtering by course."""
         query_embedding = self.embedder.embed_query(query)
         
-        where_clause = {"course_id": course_id} if course_id else None
+        where_clause = {"course_id": course_id.lower()} if course_id else None
         
         results = self.collection.query(
             query_embeddings=[query_embedding],

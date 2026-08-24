@@ -26,6 +26,9 @@ def split_markdown_by_headers(markdown_text: str, course_id: str, lecture_id: st
     # Find all matches
     matches = list(header_pattern.finditer(markdown_text))
     
+    course_id = course_id.lower()
+    lecture_id = lecture_id.lower()
+
     if not matches:
         # If no headers found, treat entire text as one chunk
         chunks.append(Chunk(

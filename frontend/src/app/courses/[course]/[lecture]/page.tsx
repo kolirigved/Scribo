@@ -45,7 +45,7 @@ export default async function LecturePage({ params }: { params: Promise<{ course
         >
           <ReactMarkdown 
             remarkPlugins={[remarkMath]}
-            rehypePlugins={[rehypeKatex]}
+            rehypePlugins={[[rehypeKatex, { strict: false, throwOnError: false }]]}
             components={{
               h1: ({node, ...props}) => <h1 style={{ color: '#fff', fontSize: '2.2rem', fontWeight: 800, borderBottom: '1px solid var(--border)', paddingBottom: '0.8rem', marginTop: '0', marginBottom: '1.5rem' }} {...props} />,
               h2: ({node, ...props}) => <h2 style={{ color: '#a5b4fc', fontSize: '1.6rem', fontWeight: 700, marginTop: '2.5rem', marginBottom: '1rem' }} {...props} />,

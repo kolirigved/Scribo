@@ -2,6 +2,9 @@
 
 import { useState } from 'react';
 import ReactMarkdown from 'react-markdown';
+import remarkMath from 'remark-math';
+import rehypeKatex from 'rehype-katex';
+import 'katex/dist/katex.min.css';
 
 interface Message {
   role: 'user' | 'bot';
@@ -74,6 +77,8 @@ export default function Chat({ courseId }: { courseId: string }) {
               {msg.role === 'bot' ? (
                 <div style={{ fontSize: '0.95rem' }} className="chat-markdown">
                   <ReactMarkdown
+                    remarkPlugins={[remarkMath]}
+                    rehypePlugins={[[rehypeKatex, { strict: false, throwOnError: false }]]}
                     components={{
                       p: ({node, ...props}) => <p style={{ margin: 0, marginBottom: '0.5rem' }} {...props} />,
                       pre: ({node, ...props}) => <pre style={{ background: 'rgba(0,0,0,0.3)', padding: '0.5rem', borderRadius: '4px', overflowX: 'auto', margin: '0.5rem 0' }} {...props} />,

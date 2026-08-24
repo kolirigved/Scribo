@@ -23,6 +23,22 @@ class QueryEngine:
         # 1. Retrieve
         results = self.vector_store.search(question, course_id=course_id, top_k=5)
         
+        if not results and course_id:
+            # Auto-index course notes if they exist on disk but haven't been indexed yet
+            course_dir = settings.COURSES_DATA_DIR / course_id.lower()
+            if course_dir.exists():
+                from scribo.rag.chunker import split_markdown_by_headers
+                indexed_any = False
+                for md_file in course_dir.glob("lecture_*.md"):
+                    lecture_id = md_file.stem.replace("lecture_", "")
+                    text = md_file.read_text(encoding="utf-8")
+                    chunks = split_markdown_by_headers(text, course_id, lecture_id)
+                    if chunks:
+                        self.vector_store.add_chunks(chunks)
+                        indexed_any = True
+                if indexed_any:
+                    results = self.vector_store.search(question, course_id=course_id, top_k=5)
+
         if not results:
             return {
                 "answer": "I don't have any notes indexed for this course yet.",

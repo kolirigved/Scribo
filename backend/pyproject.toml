@@ -24,6 +24,10 @@ dependencies = [
 [project.scripts]
 scribo = "scribo.cli:main"
 
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["scribo*"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["."]

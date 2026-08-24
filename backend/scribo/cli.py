@@ -434,6 +434,60 @@ def ask_cmd(question: str, course: Optional[str]):
             ts = f" @ {meta.get('timestamp', '')}" if meta.get("timestamp") else ""
             console.print(f"• [dim]{meta['course_id'].upper()} - {meta['lecture_id']}{ts}: {meta['header']}[/dim]")
 
+@main.command(name="index")
+@click.option("--course", "-c", default=None, help="Course identifier (e.g. eng448). If omitted, indexes all courses.")
+@click.option("--lecture", "-l", default=None, help="Lecture identifier (e.g. lec01). If omitted, indexes all lectures in the course.")
+def index_cmd(course: Optional[str], lecture: Optional[str]):
+    """Manually index lecture notes into the ChromaDB vector store."""
+    if not settings.validate_gemini_key():
+        console.print("[bold red]Error:[/bold red] GEMINI_API_KEY is not configured.")
+        sys.exit(1)
 
+    vs = VectorStore()
+    courses_to_index = [course.lower()] if course else [c for c in list_courses()]
+
+    if not courses_to_index:
+        console.print("[yellow]No courses found to index.[/yellow]")
+        return
+
+    total_chunks = 0
+    total_lectures = 0
+
+    for c in courses_to_index:
+        course_dir = settings.COURSES_DATA_DIR / c
+        if not course_dir.exists():
+            console.print(f"[yellow]Course directory not found:[/yellow] {course_dir}")
+            continue
+
+        if lecture:
+            md_files = [course_dir / f"lecture_{lecture.lower()}.md"]
+        else:
+            md_files = list(course_dir.glob("lecture_*.md"))
+
+        for md_file in md_files:
+            if not md_file.exists():
+                console.print(f"[yellow]Lecture file not found:[/yellow] {md_file.name}")
+                continue
+
+            lec_id = md_file.stem.replace("lecture_", "")
+            with console.status(f"[bold blue]Indexing {c.upper()} - {lec_id}...", spinner="dots"):
+                try:
+                    text = md_file.read_text(encoding="utf-8")
+                    chunks = split_markdown_by_headers(text, c, lec_id)
+                    if chunks:
+                        vs.add_chunks(chunks)
+                        total_chunks += len(chunks)
+                        total_lectures += 1
+                        console.print(f"[green]✓ Indexed {len(chunks)} chunks from {c.upper()} - {lec_id}[/green]")
+                    else:
+                        console.print(f"[yellow]No content chunks found in {md_file.name}[/yellow]")
+                except Exception as e:
+                    console.print(f"[bold red]Failed to index {md_file.name}:[/bold red] {e}")
+
+    console.print(Panel(
+        f"Indexed [bold green]{total_chunks}[/bold green] chunks across [bold green]{total_lectures}[/bold green] lecture(s).",
+        title="📚 Indexing Complete",
+        border_style="green"
+    ))
 if __name__ == "__main__":
     main()
