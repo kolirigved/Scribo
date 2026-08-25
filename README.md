@@ -14,10 +14,11 @@ The repository is organized as a modern **Monorepo**:
 - **Two-Stage Audio $\to$ Transcript $\to$ Notes Pipeline**:
   1. Extract verbatim transcripts with exact `[MM:SS]` segment timestamps using **Whisper** (Groq / OpenAI) or **Gemini STT**.
   2. Synthesize structured academic notes from the extracted transcript using **Gemini**.
-- **Structure-Aware Chunking & Local Vector DB (RAG)**:
-  - Header-based Markdown chunker that preserves section hierarchies and timestamp metadata.
-  - Local **ChromaDB** vector storage with embeddings via Google's `gemini-embedding-2`.
-  - Grounded question-answering with inline citations (`[Course - Lecture @ MM:SS]`).
+- **Advanced RAG Engine**:
+  - **Hierarchical Chunking**: Markdown chunker that prepends ancestral section paths to preserve deep context and timestamp metadata.
+  - **Hybrid Search**: Fuses dense vector search (ChromaDB + `gemini-embedding-2` in batches) with lexical search (BM25) using Reciprocal Rank Fusion (RRF) for precise technical retrieval.
+  - **Cross-Encoder Re-Ranking**: Uses FlashRank to re-score candidate chunks and filter out irrelevant noise before passing context to the LLM.
+  - **Grounded Generation**: Inline citations linking directly to exact audio segments (`[Course - Lecture @ MM:SS]`).
 - **Interactive Web Interface**:
   - Split-screen workspace (interactive LaTeX notes on the left, RAG chat assistant on the right).
   - Glassmorphic dark UI tailored for distraction-free studying.

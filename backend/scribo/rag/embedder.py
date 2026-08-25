@@ -12,22 +12,24 @@ class Embedder:
         self.client = genai.Client(api_key=key)
         self.model = "gemini-embedding-2"
         
-    def embed(self, texts: List[str]) -> List[List[float]]:
-        """Generate embeddings for a list of strings."""
+    def embed(self, texts: List[str], batch_size: int = 50) -> List[List[float]]:
+        """Generate embeddings for a list of strings in batches."""
         if not texts:
             return []
             
         embeddings = []
-        for text in texts:
+        for i in range(0, len(texts), batch_size):
+            batch = texts[i:i + batch_size]
             result = self.client.models.embed_content(
                 model=self.model,
-                contents=[text],
+                contents=batch,
                 config=genai.types.EmbedContentConfig(
                     task_type="RETRIEVAL_DOCUMENT"
                 )
             )
             if isinstance(result.embeddings, list):
-                embeddings.append(result.embeddings[0].values)
+                for emb in result.embeddings:
+                    embeddings.append(emb.values)
             else:
                 embeddings.append(result.embeddings.values)
                 

@@ -10,3 +10,5 @@ pytest>=8.0.0
 fastapi
 uvicorn
 chromadb
+rank-bm25>=0.2.2
+flashrank>=0.2.8
