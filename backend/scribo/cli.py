@@ -20,9 +20,11 @@ from scribo.storage.local_store import (
     save_transcript_only,
     load_lecture_notes,
     load_lecture_transcript,
+    save_slides_text,
     list_courses,
     list_lectures,
 )
+from scribo.pipeline.slides.extractor import extract_pdf_text
 from scribo.rag.chunker import split_markdown_by_headers
 from scribo.rag.vector_store import VectorStore
 from scribo.rag.query_engine import QueryEngine
@@ -288,6 +290,28 @@ def process_cmd(
             console.print(f"[bold red]Indexing error:[/bold red] {e}")
 
 
+@main.command(name="slides")
+@click.option("--course", "-c", required=True, help="Course identifier (e.g. cs101).")
+@click.option("--lecture", "-l", required=True, help="Lecture identifier (e.g. lec01).")
+@click.option("--pdf", "-p", required=True, type=click.Path(exists=True), help="Path to lecture slide deck (PDF).")
+def slides_cmd(course: str, lecture: str, pdf: str):
+    """Extract and persist text from a lecture slide deck (PDF)."""
+    with console.status("[bold blue]Extracting slide text...", spinner="dots"):
+        try:
+            slides_text = extract_pdf_text(pdf)
+            console.print(f"[green]Extracted {len(slides_text.split())} words from {pdf}.[/green]")
+        except Exception as e:
+            console.print(f"[bold red]Extraction error:[/bold red] {e}")
+            sys.exit(1)
+            
+    try:
+        slides_path = save_slides_text(course_id=course, lecture_id=lecture, text=slides_text)
+        console.print(f"[bold green]Saved slide text to:[/bold green] {slides_path}")
+    except Exception as e:
+        console.print(f"[bold red]Storage error:[/bold red] {e}")
+        sys.exit(1)
+
+
 @main.command(name="process-audio")
 @click.option("--course", "-c", required=True, help="Course identifier (e.g. cs101).")
 @click.option("--lecture", "-l", required=True, help="Lecture identifier (e.g. lec01).")
@@ -474,6 +498,18 @@ def index_cmd(course: Optional[str], lecture: Optional[str]):
                 try:
                     text = md_file.read_text(encoding="utf-8")
                     chunks = split_markdown_by_headers(text, c, lec_id)
+                    
+                    # Also try to index slides if they exist
+                    slides_file = course_dir / f"lecture_{lec_id}_slides.txt"
+                    if slides_file.exists():
+                        slides_text = slides_file.read_text(encoding="utf-8")
+                        try:
+                            from scribo.rag.chunker import split_slides_by_page
+                            slides_chunks = split_slides_by_page(slides_text, c, lec_id)
+                            chunks.extend(slides_chunks)
+                        except ImportError:
+                            pass
+                            
                     if chunks:
                         vs.add_chunks(chunks)
                         total_chunks += len(chunks)

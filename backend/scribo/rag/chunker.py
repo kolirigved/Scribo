@@ -77,3 +77,50 @@ def split_markdown_by_headers(markdown_text: str, course_id: str, lecture_id: st
             ))
             
     return chunks
+
+def split_slides_by_page(slides_text: str, course_id: str, lecture_id: str) -> List[Chunk]:
+    """
+    Splits slide extracted text into chunks based on page breadcrumbs.
+    """
+    chunks = []
+    
+    # Pattern to match [Slide: Page X]
+    page_pattern = re.compile(r'^\[Slide: Page (\d+)\]', re.MULTILINE)
+    matches = list(page_pattern.finditer(slides_text))
+    
+    course_id = course_id.lower()
+    lecture_id = lecture_id.lower()
+    
+    if not matches:
+        chunks.append(Chunk(
+            text=slides_text.strip(),
+            metadata=ChunkMetadata(
+                course_id=course_id,
+                lecture_id=lecture_id,
+                header="Slide Text"
+            )
+        ))
+        return chunks
+        
+    for i, match in enumerate(matches):
+        page_num = match.group(1)
+        header_text = f"Slide {page_num}"
+        
+        start_idx = match.end()
+        end_idx = matches[i+1].start() if i + 1 < len(matches) else len(slides_text)
+        
+        content = slides_text[start_idx:end_idx].strip()
+        
+        if content:
+            contextual_text = f"[Course: {course_id.upper()} | Lecture: {lecture_id} | Section: {header_text}]\n{content}"
+            chunks.append(Chunk(
+                text=contextual_text,
+                metadata=ChunkMetadata(
+                    course_id=course_id,
+                    lecture_id=lecture_id,
+                    header=header_text,
+                    timestamp=None
+                )
+            ))
+            
+    return chunks

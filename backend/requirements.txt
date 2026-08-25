@@ -12,3 +12,4 @@ uvicorn
 chromadb
 rank-bm25>=0.2.2
 flashrank>=0.2.8
+pypdf>=5.0.0

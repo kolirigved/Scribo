@@ -34,7 +34,7 @@ class QueryEngine:
             # Auto-index course notes if they exist on disk but haven't been indexed yet
             course_dir = settings.COURSES_DATA_DIR / course_id.lower()
             if course_dir.exists():
-                from scribo.rag.chunker import split_markdown_by_headers
+                from scribo.rag.chunker import split_markdown_by_headers, split_slides_by_page
                 indexed_any = False
                 for md_file in course_dir.glob("lecture_*.md"):
                     lecture_id = md_file.stem.replace("lecture_", "")
@@ -43,6 +43,15 @@ class QueryEngine:
                     if chunks:
                         self.vector_store.add_chunks(chunks)
                         indexed_any = True
+                
+                for slides_file in course_dir.glob("lecture_*_slides.txt"):
+                    lecture_id = slides_file.stem.replace("lecture_", "").replace("_slides", "")
+                    text = slides_file.read_text(encoding="utf-8")
+                    chunks = split_slides_by_page(text, course_id, lecture_id)
+                    if chunks:
+                        self.vector_store.add_chunks(chunks)
+                        indexed_any = True
+                        
                 if indexed_any:
                     results = self.vector_store.search(question, course_id=course_id, top_k=15)
 

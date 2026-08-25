@@ -180,6 +180,28 @@ def load_lecture_transcript(course_id: str, lecture_id: str) -> str:
     return transcript_path.read_text(encoding="utf-8")
 
 
+def save_slides_text(course_id: str, lecture_id: str, text: str) -> Path:
+    """Save extracted slide text."""
+    course_dir = get_course_dir(course_id)
+    safe_lecture_id = lecture_id.strip().lower().replace(" ", "_")
+    slides_path = course_dir / f"lecture_{safe_lecture_id}_slides.txt"
+    slides_path.write_text(text, encoding="utf-8")
+    return slides_path
+
+
+def load_slides_text(course_id: str, lecture_id: str) -> str:
+    """Load extracted slide text."""
+    course_dir = get_course_dir(course_id)
+    safe_lecture_id = lecture_id.strip().lower().replace(" ", "_")
+    slides_path = course_dir / f"lecture_{safe_lecture_id}_slides.txt"
+
+    if not slides_path.exists():
+        raise FileNotFoundError(f"Lecture slides not found: {slides_path}")
+
+    return slides_path.read_text(encoding="utf-8")
+
+
+
 def load_lecture_transcript_json(course_id: str, lecture_id: str) -> dict[str, Any]:
     """Load structured JSON transcript with timestamps."""
     course_dir = get_course_dir(course_id)

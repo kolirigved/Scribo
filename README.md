@@ -74,6 +74,33 @@ npm run dev
 
 Open [http://localhost:3000](http://localhost:3000) in your browser!
 
+## 🏛️ Architecture & Flowchart
+
+```mermaid
+flowchart TD
+    %% Audio Pipeline
+    A1([Audio Recording]) -->|Compress & Downsample| B1[Mono MP3]
+    B1 -->|Whisper / Gemini STT| C1[Raw Transcript + Timestamps]
+    C1 -->|Gemini API| D1[Markdown Notes]
+    
+    %% Slide Pipeline
+    A2([PDF Slide Deck]) -->|scribo slides| C2[Raw Slide Text]
+    
+    %% Indexing
+    D1 -->|Split by Headers| E[Hierarchical Chunking]
+    C2 -->|Split by Pages| E
+    
+    %% Vector Store
+    E -->|Batch Embed| F[(ChromaDB + BM25)]
+    
+    %% Query Flow
+    Q([User Question]) --> G[Hybrid Search]
+    F -.->|Retrieve Chunks| G
+    G -->|FlashRank| H[Cross-Encoder Re-Ranking]
+    H -->|Top Verified Chunks| I[Gemini Contextual Prompt]
+    I --> J([Grounded Answer + Citations])
+```
+
 ---
 
 ## 🛠️ CLI Usage
@@ -91,11 +118,17 @@ scribo process \
   --audio "/path/to/lecture.m4a" \
   --title "Introduction to Dravidian Languages"
 
+# Extract text from a lecture slide deck (PDF)
+scribo slides --course eng448 --lecture lec01 --pdf "/path/to/slides.pdf"
+
 # Extract transcript only
 scribo transcribe --course cs101 --lecture lec01 --audio /path/to/lecture.m4a
 
 # Synthesize notes from an existing transcript file
 scribo synthesize --course cs101 --lecture lec01 --transcript /path/to/transcript.txt --title "Lecture 1"
+
+# Index all course files manually (Markdown and Slides)
+scribo index --course eng448
 
 # Query the knowledge base via CLI using Grounded RAG
 scribo ask --course eng448 "What is zero copula?"
