@@ -1,5 +1,6 @@
-from google import genai
+import concurrent.futures
 from typing import List
+from google import genai
 from scribo.config import settings
 
 class Embedder:
@@ -12,27 +13,26 @@ class Embedder:
         self.client = genai.Client(api_key=key)
         self.model = "gemini-embedding-2"
         
-    def embed(self, texts: List[str], batch_size: int = 50) -> List[List[float]]:
-        """Generate embeddings for a list of strings in batches."""
+    def _embed_single(self, text: str) -> List[float]:
+        result = self.client.models.embed_content(
+            model=self.model,
+            contents=[text],
+            config=genai.types.EmbedContentConfig(
+                task_type="RETRIEVAL_DOCUMENT"
+            )
+        )
+        if isinstance(result.embeddings, list):
+            return result.embeddings[0].values
+        return result.embeddings.values
+
+    def embed(self, texts: List[str], max_workers: int = 8) -> List[List[float]]:
+        """Generate embeddings concurrently for high throughput."""
         if not texts:
             return []
             
-        embeddings = []
-        for i in range(0, len(texts), batch_size):
-            batch = texts[i:i + batch_size]
-            result = self.client.models.embed_content(
-                model=self.model,
-                contents=batch,
-                config=genai.types.EmbedContentConfig(
-                    task_type="RETRIEVAL_DOCUMENT"
-                )
-            )
-            if isinstance(result.embeddings, list):
-                for emb in result.embeddings:
-                    embeddings.append(emb.values)
-            else:
-                embeddings.append(result.embeddings.values)
-                
+        with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
+            embeddings = list(executor.map(self._embed_single, texts))
+            
         return embeddings
             
     def embed_query(self, query: str) -> List[float]:
