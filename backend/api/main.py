@@ -70,12 +70,19 @@ def get_lecture_details(course_id: str, lecture_id: str):
 class QueryRequest(BaseModel):
     query: str
     course_id: str | None = None
+    query_rewriting: bool = True
+    history: list[dict] | None = None
 
 @app.post("/query")
 def query_rag(request: QueryRequest):
     from scribo.rag.query_engine import QueryEngine
     try:
         engine = QueryEngine()
-        return engine.query(request.query, course_id=request.course_id)
+        return engine.query(
+            question=request.query,
+            course_id=request.course_id,
+            enable_query_rewriting=request.query_rewriting,
+            history=request.history
+        )
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

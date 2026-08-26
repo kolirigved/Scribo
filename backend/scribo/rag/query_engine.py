@@ -1,4 +1,4 @@
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 from google import genai
 from google.genai import types
 from scribo.config import settings
@@ -18,17 +18,85 @@ class QueryEngine:
         cache_dir = settings.COURSES_DATA_DIR / "flashrank_cache"
         cache_dir.mkdir(parents=True, exist_ok=True)
         self.ranker = Ranker(cache_dir=str(cache_dir))
+
+    def rewrite_query(self, question: str, history: Optional[List[Dict[str, str]]] = None) -> str:
+        """
+        Rewrite and expand student query using Gemini for optimal hybrid retrieval:
+        - Resolves ambiguous conversational references / pronouns from history
+        - Expands technical acronyms and domain terminology
+        - Enriches with academic keywords and synonyms
+        """
+        if not question or not question.strip():
+            return question
+
+        history_context = ""
+        if history:
+            formatted_turns = []
+            for h in history[-6:]:  # Keep recent context
+                role = "Student" if h.get("role") in ["user", "human"] else "Assistant"
+                content = h.get("content", "").strip()
+                if content:
+                    formatted_turns.append(f"{role}: {content}")
+            if formatted_turns:
+                history_context = "Conversation History:\n" + "\n".join(formatted_turns) + "\n\n"
+
+        system_prompt = (
+            "You are an academic search query optimizer for a university lecture RAG system. "
+            "Your job is to rewrite the student's question into an optimal, standalone search query for hybrid BM25 + dense vector search.\n"
+            "Rules:\n"
+            "1. Resolve any pronouns, follow-ups, or ambiguous references using conversation history.\n"
+            "2. Expand course-related acronyms and abbreviations into their full terminology (e.g. 'DPD' -> 'Digital Predistortion', 'CIR' -> 'Channel Impulse Response', 'DoA' -> 'Direction of Arrival').\n"
+            "3. Include essential technical keywords or domain concepts directly relevant to finding lecture notes and slides.\n"
+            "4. Keep the query concise, dense, and directly focused on the search target.\n"
+            "5. Return ONLY the rewritten query text. Do NOT include markdown, quotation marks, preamble, or explanation."
+        )
+
+        user_content = f"{history_context}Current Question: {question}\n\nOptimized Search Query:"
+
+        try:
+            response = self.client.models.generate_content(
+                model=self.model,
+                contents=[user_content],
+                config=types.GenerateContentConfig(
+                    system_instruction=system_prompt,
+                    temperature=0.1,
+                )
+            )
+            rewritten = response.text.strip().strip('"').strip("'").strip()
+            if rewritten and len(rewritten) > 2:
+                return rewritten
+        except Exception:
+            # Fallback gracefully to original question on any API or model error
+            pass
+
+        return question
         
-    def query(self, question: str, course_id: str = None) -> Dict[str, Any]:
+    def query(
+        self, 
+        question: str, 
+        course_id: Optional[str] = None,
+        enable_query_rewriting: bool = True,
+        history: Optional[List[Dict[str, str]]] = None
+    ) -> Dict[str, Any]:
         """
         Execute an Advanced RAG query:
-        1. Retrieve candidate chunks via Hybrid Search (BM25 + Dense)
-        2. Re-rank chunks using a Cross-Encoder (FlashRank)
-        3. Format prompt with top verified chunks
-        4. Generate grounded answer
+        1. (Optional) Rewrite student query for enhanced academic terminology and conversational context
+        2. Retrieve candidate chunks via Hybrid Search (BM25 + Dense)
+        3. Re-rank chunks using a Cross-Encoder (FlashRank)
+        4. Format prompt with top verified chunks
+        5. Generate grounded answer
         """
-        # 1. Retrieve Candidate Chunks (top_k=15 for higher recall)
-        results = self.vector_store.search(question, course_id=course_id, top_k=15)
+        # 1. Query Rewriting (if enabled)
+        search_query = question
+        rewritten_query = None
+        if enable_query_rewriting:
+            rewritten = self.rewrite_query(question, history=history)
+            if rewritten and rewritten.lower() != question.lower():
+                rewritten_query = rewritten
+                search_query = rewritten
+
+        # 2. Retrieve Candidate Chunks (top_k=15 for higher recall)
+        results = self.vector_store.search(search_query, course_id=course_id, top_k=15)
         
         if not results and course_id:
             # Auto-index course notes if they exist on disk but haven't been indexed yet
@@ -53,15 +121,17 @@ class QueryEngine:
                         indexed_any = True
                         
                 if indexed_any:
-                    results = self.vector_store.search(question, course_id=course_id, top_k=15)
+                    results = self.vector_store.search(search_query, course_id=course_id, top_k=15)
 
         if not results:
             return {
                 "answer": "I don't have any notes indexed for this course yet.",
-                "citations": []
+                "citations": [],
+                "rewritten_query": rewritten_query,
+                "query_rewriting_enabled": enable_query_rewriting
             }
             
-        # 2. Re-Ranking with FlashRank
+        # 3. Re-Ranking with FlashRank
         passages = []
         for res in results:
             passages.append({
@@ -70,7 +140,7 @@ class QueryEngine:
                 "meta": res["metadata"]
             })
             
-        rerank_request = RerankRequest(query=question, passages=passages)
+        rerank_request = RerankRequest(query=search_query, passages=passages)
         rerank_results = self.ranker.rerank(rerank_request)
         
         # Filter down to top 3 highly relevant chunks
@@ -82,7 +152,7 @@ class QueryEngine:
                 "metadata": item.get("meta", {})
             })
             
-        # 3. Format Context
+        # 4. Format Context
         context_blocks = []
         for res in top_results:
             meta = res["metadata"]
@@ -92,7 +162,7 @@ class QueryEngine:
             
         context_str = "\n\n---\n\n".join(context_blocks)
         
-        # 4. Prompt Construction
+        # 5. Prompt Construction
         system_prompt = (
             "You are Scribo, an academic AI assistant. You answer student questions based ONLY "
             "on the provided lecture notes context. You must include inline citations pointing to the exact "
@@ -102,7 +172,7 @@ class QueryEngine:
         
         user_prompt = f"Context:\n{context_str}\n\nQuestion:\n{question}"
         
-        # 5. Generate Answer
+        # 6. Generate Answer
         response = self.client.models.generate_content(
             model=self.model,
             contents=[user_prompt],
@@ -114,5 +184,8 @@ class QueryEngine:
         
         return {
             "answer": response.text,
-            "citations": top_results
+            "citations": top_results,
+            "rewritten_query": rewritten_query,
+            "query_rewriting_enabled": enable_query_rewriting
         }
+

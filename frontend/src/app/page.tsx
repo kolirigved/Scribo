@@ -55,7 +55,7 @@ export default async function Home() {
                 }}
               >
                 <div style={{ position: 'absolute', top: 0, left: 0, height: '4px', width: '100%', background: 'linear-gradient(90deg, var(--primary), var(--secondary))' }} />
-                <span style={{ fontSize: '0.85rem', textTransform: 'uppercase', tracking: '0.05em', color: 'var(--secondary)', fontWeight: 600 }}>Active Syllabus</span>
+                <span style={{ fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--secondary)', fontWeight: 600 }}>Active Syllabus</span>
                 <span style={{ fontSize: '1.5rem', fontWeight: 700, color: '#fff' }}>
                   {course.toUpperCase()}
                 </span>

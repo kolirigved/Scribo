@@ -26,7 +26,7 @@ export default async function LecturePage({ params }: { params: Promise<{ course
           ← Back to {course.toUpperCase()}
         </Link>
         <div style={{ textAlign: 'right' }}>
-          <span style={{ fontSize: '0.8rem', color: 'var(--primary)', fontWeight: 600, textTransform: 'uppercase', tracking: '0.05em' }}>Study Workspace</span>
+          <span style={{ fontSize: '0.8rem', color: 'var(--primary)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Study Workspace</span>
           <h2 style={{ fontSize: '1.25rem', fontWeight: 700, color: '#fff', margin: 0 }}>Lecture: {lecture.toUpperCase()}</h2>
         </div>
       </div>

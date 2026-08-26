@@ -435,15 +435,20 @@ def view_cmd(course: str, lecture: str, transcript: bool):
 @main.command(name="ask")
 @click.argument("question")
 @click.option("--course", "-c", default=None, help="Optional course identifier to filter search.")
-def ask_cmd(question: str, course: Optional[str]):
+@click.option("--rewrite/--no-rewrite", default=True, help="Enable/disable LLM query rewriting.")
+def ask_cmd(question: str, course: Optional[str], rewrite: bool):
     """Query the knowledge base using grounded RAG."""
-    with console.status("[bold blue]Querying vector base and synthesizing answer...", spinner="dots"):
+    status_msg = "Rewriting query and querying vector base..." if rewrite else "Querying vector base and synthesizing answer..."
+    with console.status(f"[bold blue]{status_msg}", spinner="dots"):
         try:
             engine = QueryEngine()
-            result = engine.query(question, course_id=course)
+            result = engine.query(question, course_id=course, enable_query_rewriting=rewrite)
         except Exception as e:
             console.print(f"[bold red]Query failed:[/bold red] {e}")
             sys.exit(1)
+
+    if result.get("rewritten_query"):
+        console.print(f"[dim]🔍 Rewritten Search Query:[/dim] [bold cyan]{result['rewritten_query']}[/bold cyan]\n")
 
     console.print(Panel(
         Markdown(result["answer"]),
