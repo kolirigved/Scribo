@@ -231,8 +231,13 @@ def list_courses() -> list[str]:
     """List all courses in local storage."""
     if not settings.COURSES_DATA_DIR.exists():
         return []
+    ignored = {"chroma_db", "flashrank_cache", "temp"}
     return sorted(
-        [p.name for p in settings.COURSES_DATA_DIR.iterdir() if p.is_dir() and not p.name.startswith(".")]
+        [
+            p.name
+            for p in settings.COURSES_DATA_DIR.iterdir()
+            if p.is_dir() and not p.name.startswith((".", "_")) and p.name.lower() not in ignored
+        ]
     )
 
 

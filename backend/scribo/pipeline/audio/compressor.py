@@ -70,6 +70,7 @@ def compress_audio(
     bitrate: str = settings.AUDIO_BITRATE,
     sample_rate: int = settings.AUDIO_SAMPLE_RATE,
     channels: int = settings.AUDIO_CHANNELS,
+    normalize: bool = False,
 ) -> tuple[Path, AudioMetadata, AudioMetadata]:
     """Compress and downsample audio to mono MP3 at target bitrate.
 
@@ -79,6 +80,7 @@ def compress_audio(
         bitrate: Target bitrate (e.g. '32k', '48k').
         sample_rate: Target sample rate (e.g. 16000).
         channels: Target channel count (1 for mono).
+        normalize: Apply EBU R128 loudness normalization for weak audio.
 
     Returns:
         tuple[Path, AudioMetadata, AudioMetadata]: (compressed_path, original_meta, compressed_meta)
@@ -104,10 +106,14 @@ def compress_audio(
             "-i", str(in_path),
             "-ac", str(channels),
             "-ar", str(sample_rate),
+        ]
+        if normalize:
+            cmd.extend(["-af", "loudnorm"])
+        cmd.extend([
             "-b:a", bitrate,
             "-vn",  # Discard any video tracks if present in m4a/mp4
             str(out_path)
-        ]
+        ])
         result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
         if result.returncode != 0:
             raise RuntimeError(f"FFmpeg compression failed: {result.stderr}")

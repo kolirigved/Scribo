@@ -174,6 +174,7 @@ def transcribe_cmd(
 @click.option("--model", "-m", default=None, help="Gemini model override for synthesis.")
 @click.option("--compress/--no-compress", default=True, help="Whether to compress audio before STT.")
 @click.option("--bitrate", "-b", default=settings.AUDIO_BITRATE, help="Audio compression bitrate.")
+@click.option("--normalize/--no-normalize", default=False, help="Apply loudness normalization for weak audio.")
 def process_cmd(
     course: str,
     lecture: str,
@@ -184,6 +185,7 @@ def process_cmd(
     model: Optional[str],
     compress: bool,
     bitrate: str,
+    normalize: bool,
 ):
     """Full Audio Ingestion Pipeline: Compress -> Timestamped Transcript -> Synthesize Notes -> Persist."""
     if not settings.validate_gemini_key():
@@ -203,6 +205,7 @@ def process_cmd(
                 target_audio_path, orig_meta, comp_meta = compress_audio(
                     input_path=audio,
                     bitrate=bitrate,
+                    normalize=normalize,
                 )
                 audio_stats = {
                     "original_path": orig_meta.file_path,
